@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-gsb-dlake-dlake-access-fraud-api
+  labels:
+    app: prod-dlake-access-fraud-api
+    env: prod
+  namespace: ns-gsb-dlake-prod
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: prod-dlake-access-fraud-api
+  template:
+    metadata:
+      name: prod-gsb-dlake-dlake-access-fraud-api
+      labels:
+        app: prod-dlake-access-fraud-api
+        env: prod
+      annotations:
+        configmap-version: "default"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: gsb-dlake-prod-fraud
+                    operator: In
+                    values: ["yes"]
+      hostAliases:
+        - ip: "10.81.90.41"
+          hostnames:
+            - "gsb-prddc-r01w01.tn.local"
+        - ip: "10.81.90.42"
+          hostnames:
+            - "gsb-prddc-r01w02.tn.local"
+        - ip: "10.81.90.43"
+          hostnames:
+            - "gsb-prddc-r01w03.tn.local"
+        - ip: "10.81.90.44"
+          hostnames:
+            - "gsb-prddc-r01w04.tn.local"
+        - ip: "10.81.90.45"
+          hostnames:
+            - "gsb-prddc-r01w05.tn.local"
+        - ip: "10.81.90.169"
+          hostnames:
+            - "gsb-lake-prd-mq01"
+        - ip: "10.81.90.170"
+          hostnames:
+            - "gsb-lake-prd-mq02"
+        - ip: "10.81.90.174"
+          hostnames:
+            - "gsb-lake-prd-mq03"
+      containers:
+        - name: prod-dlake-access-fraud-api
+          image: nonprdregistry.myp.local:5443/datalake/access_fraud_api:0.0.9
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POD_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /datalake-access/system/v1/ping
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: /etc/localtime
+              name: localtime
+            - mountPath: /application/logs/
+              name: dlake-access-fraud-api-logs
+              subPathExpr: $(POD_ID)
+          envFrom:
+            - configMapRef:
+                name: prod-dlake-access-fraud-api-conf
+      restartPolicy: Always
+      imagePullSecrets:
+        - name: regsecret
+      volumes:
+        - hostPath:
+            path: /etc/localtime
+          name: localtime
+        - name: dlake-access-fraud-api-logs
+          hostPath:
+            path: /app/logs/prod-dlake-access-fraud-api/
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prod-dlake-access-fraud-api-svc
+  labels:
+    app: prod-dlake-access-fraud-api
+    env: prod
+  namespace: ns-gsb-dlake-prod
+spec:
+  selector:
+    app: prod-dlake-access-fraud-api
+    env: prod
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30082
+      name: http
+  type: NodePort
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prod-dlake-access-fraud-api-conf
+  namespace: ns-gsb-dlake-prod
+data:
+  HBASE_NAMESPACE: "prod"
+  HADOOP_USER_NAME: "tu_job_fraud_detection"
+  EXPENSE_STAT_TABLE_NAME: "prod:personal-expense-stat"
+  DESTINATION_TABLE_NAME: "prod:personal-old-destination"
+  ZK_QUORUM_URL: "10.81.90.43,10.81.90.44,10.81.90.45"
+  TYPE_ACCT_NO: "transfer_out_by_accountno"
+  TYPE_PROXY_ID: "transfer_out_promptpay"
+  TYPE_WALLET: ""
+  TYPE_BILL: ""
+  EXPENSE_TABLE_NAME: "prod:personal-expense"
+  WEALTH_TABLE_NAME: "prod:personal-wealth"
+  ELDER_WEALTH_THRESHOLD: "1000000"
+  ELDER_WEALTH_DURATION_MONTH: "6"
+  ELDER_TRANSACTION_AMT_MAX_RATIO: "2.0"
+  ELDER_TRANSACTION_AMT_WEALTH_RATIO: "0.5"
+  ENABLE_LOG_RQRS_BODY: "false"
+  DATE_LIMIT: "30"
+  ENABLE_ELDER_CHECK_1M: "false"
+  ENABLE_ELDER_CHECK_NEW_DES: "true"
+  ENABLE_ELDER_CHECK_TXN_LIMIT: "true"
+  JVM_ARGS: "-Dserver.servlet.context-path=/datalake-access -Dkafka.bootstrap.address=127.0.0.1:9092 -Dkafka.ack=1 -Dkafka.retry=1 -Dapplication.id=datalake-access-1 -Dapplication.home=/application -verbose:gc -Xloggc:/application/logs/gc.log -XX:+PrintGCDetails -XX:+PrintGCDateStamps -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=5 -XX:GCLogFileSize=3M -XX:-TraceClassUnloading -Xms256m -Xmx512m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m"
