@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prod-gsb-dlake-dlake-access-fraud-api
+  name: endpoint-gsb-dlake-dlake-access-fraud-api
   labels:
-    app: prod-dlake-access-fraud-api
-    env: prod
-  namespace: ns-gsb-dlake-prod
+    app: endpoint-dlake-access-fraud-api
+    env: endpoint
+  namespace: ns-gsb-dlake-endpoint
 spec:
-  replicas: 6
+  replicas: 1
   selector:
     matchLabels:
-      app: prod-dlake-access-fraud-api
+      app: endpoint-dlake-access-fraud-api
   template:
     metadata:
-      name: prod-gsb-dlake-dlake-access-fraud-api
+      name: endpoint-gsb-dlake-dlake-access-fraud-api
       labels:
-        app: prod-dlake-access-fraud-api
-        env: prod
+        app: endpoint-dlake-access-fraud-api
+        env: endpoint
       annotations:
         configmap-version: "default"
     spec:
@@ -25,36 +25,30 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                  - key: gsb-dlake-prod-fraud
+                  - key: gsb-dlake-endpoint-fraud
                     operator: In
                     values: ["yes"]
       hostAliases:
-        - ip: "10.81.90.41"
+        - ip: "10.82.90.41"
           hostnames:
-            - "gsb-prddc-r01w01.tn.local"
-        - ip: "10.81.90.42"
+            - "gsb-prddr-r01w01.tn.local"
+        - ip: "10.82.90.42"
           hostnames:
-            - "gsb-prddc-r01w02.tn.local"
-        - ip: "10.81.90.43"
+            - "gsb-prddr-r01w02.tn.local"
+        - ip: "10.82.90.43"
           hostnames:
-            - "gsb-prddc-r01w03.tn.local"
-        - ip: "10.81.90.44"
+            - "gsb-prddr-r01w03.tn.local"
+        - ip: "10.82.90.170"
           hostnames:
-            - "gsb-prddc-r01w04.tn.local"
-        - ip: "10.81.90.45"
+            - "gsb-lake-drp-mq01"
+        - ip: "10.82.90.174"
           hostnames:
-            - "gsb-prddc-r01w05.tn.local"
-        - ip: "10.81.90.169"
+            - "gsb-lake-drp-mq02"
+        - ip: "10.82.90.175"
           hostnames:
-            - "gsb-lake-prd-mq01"
-        - ip: "10.81.90.170"
-          hostnames:
-            - "gsb-lake-prd-mq02"
-        - ip: "10.81.90.174"
-          hostnames:
-            - "gsb-lake-prd-mq03"
+            - "gsb-lake-drp-mq03"
       containers:
-        - name: prod-dlake-access-fraud-api
+        - name: endpoint-dlake-access-fraud-api
           image: nonprdregistry.myp.local:5443/datalake/access_fraud_api:0.0.9
           imagePullPolicy: IfNotPresent
           env:
@@ -73,12 +67,9 @@ spec:
           volumeMounts:
             - mountPath: /etc/localtime
               name: localtime
-            - mountPath: /application/logs/
-              name: dlake-access-fraud-api-logs
-              subPathExpr: $(POD_ID)
           envFrom:
             - configMapRef:
-                name: prod-dlake-access-fraud-api-conf
+                name: endpoint-dlake-access-fraud-api-conf
       restartPolicy: Always
       imagePullSecrets:
         - name: regsecret
@@ -86,9 +77,6 @@ spec:
         - hostPath:
             path: /etc/localtime
           name: localtime
-        - name: dlake-access-fraud-api-logs
-          hostPath:
-            path: /app/logs/prod-dlake-access-fraud-api/
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -98,40 +86,40 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: prod-dlake-access-fraud-api-svc
+  name: endpoint-dlake-access-fraud-api-svc
   labels:
-    app: prod-dlake-access-fraud-api
-    env: prod
-  namespace: ns-gsb-dlake-prod
+    app: endpoint-dlake-access-fraud-api
+    env: endpoint
+  namespace: ns-gsb-dlake-endpoint
 spec:
   selector:
-    app: prod-dlake-access-fraud-api
-    env: prod
+    app: endpoint-dlake-access-fraud-api
+    env: endpoint
   ports:
     - protocol: TCP
       port: 8080
       targetPort: 8080
-      nodePort: 30082
+      nodePort: 30127
       name: http
   type: NodePort
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: prod-dlake-access-fraud-api-conf
-  namespace: ns-gsb-dlake-prod
+  name: endpoint-dlake-access-fraud-api-conf
+  namespace: ns-gsb-dlake-endpoint
 data:
-  HBASE_NAMESPACE: "prod"
+  HBASE_NAMESPACE: "endpoint"
   HADOOP_USER_NAME: "tu_job_fraud_detection"
-  EXPENSE_STAT_TABLE_NAME: "prod:personal-expense-stat"
-  DESTINATION_TABLE_NAME: "prod:personal-old-destination"
-  ZK_QUORUM_URL: "10.81.90.43,10.81.90.44,10.81.90.45"
+  EXPENSE_STAT_TABLE_NAME: "endpoint:personal-expense-stat"
+  DESTINATION_TABLE_NAME: "endpoint:personal-old-destination"
+  ZK_QUORUM_URL: "10.82.90.41,10.82.90.42,10.82.90.43"
   TYPE_ACCT_NO: "transfer_out_by_accountno"
   TYPE_PROXY_ID: "transfer_out_promptpay"
   TYPE_WALLET: ""
   TYPE_BILL: ""
-  EXPENSE_TABLE_NAME: "prod:personal-expense"
-  WEALTH_TABLE_NAME: "prod:personal-wealth"
+  EXPENSE_TABLE_NAME: "endpoint:personal-expense"
+  WEALTH_TABLE_NAME: "endpoint:personal-wealth"
   ELDER_WEALTH_THRESHOLD: "1000000"
   ELDER_WEALTH_DURATION_MONTH: "6"
   ELDER_TRANSACTION_AMT_MAX_RATIO: "2.0"
